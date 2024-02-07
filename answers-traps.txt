@@ -1,0 +1,7 @@
+a0-a7,a2
+no call, because f and g functions are inlined(f inline g,main inline f)
+0x628 or 48(0x30)+1528
+38
+change i into 0x726c6400. no
+the register for the third argument, a2, is not set to any specific value before the
+call 

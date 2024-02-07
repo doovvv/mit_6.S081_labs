@@ -78,6 +78,18 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
+      if(p->ticks > 0 && p->goes_off == 1){
+      //printf("come in");
+        p->already_ticks++;
+      if(p->already_ticks == p->ticks){
+        //p->handler(); //can't call user function, page table have changed
+        *p->temp_trapframe = *p->trapframe;
+        //printf("1:%p ",p->temp_trapframe->epc);
+        p->trapframe->epc = (uint64)p->handler;
+        p->goes_off = 0;
+        p->already_ticks = 0;
+      }  
+    }
     yield();
 
   usertrapret();
