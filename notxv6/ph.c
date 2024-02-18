@@ -2,9 +2,11 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <assert.h>
+#define __USE_GNU  
+#include <sched.h> 
 #include <pthread.h>
 #include <sys/time.h>
-
+#define _GNU_SOURCE 
 #define NBUCKET 5
 #define NKEYS 100000
 
@@ -35,14 +37,15 @@ insert(int key, int value, struct entry **p, struct entry *n)
   e->next = n;
   *p = e;
 }
-
+pthread_mutex_t locks[NBUCKET];
 static 
 void put(int key, int value)
 {
   int i = key % NBUCKET;
-
   // is the key already present?
+  pthread_mutex_lock(&(locks[i]));
   struct entry *e = 0;
+
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key)
       break;
@@ -54,21 +57,19 @@ void put(int key, int value)
     // the new is new.
     insert(key, value, &table[i], table[i]);
   }
-
+  pthread_mutex_unlock(&locks[i]);
 }
-
 static struct entry*
 get(int key)
 {
   int i = key % NBUCKET;
 
-
   struct entry *e = 0;
   for (e = table[i]; e != 0; e = e->next) {
     if (e->key == key) break;
   }
-
   return e;
+
 }
 
 static void *
@@ -89,7 +90,11 @@ get_thread(void *xa)
 {
   int n = (int) (long) xa; // thread number
   int missing = 0;
-
+  cpu_set_t cpuset;
+  CPU_ZERO(&cpuset);
+  CPU_SET(n,&cpuset);
+  pthread_t thread = pthread_self();
+  pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
   for (int i = 0; i < NKEYS; i++) {
     struct entry *e = get(keys[i]);
     if (e == 0) missing++;
@@ -117,7 +122,9 @@ main(int argc, char *argv[])
   for (int i = 0; i < NKEYS; i++) {
     keys[i] = random();
   }
-
+  for(int i = 0;i<NBUCKET;i++){
+    pthread_mutex_init(&locks[i], NULL);
+  }
   //
   // first the puts
   //

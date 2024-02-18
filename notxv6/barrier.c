@@ -25,6 +25,17 @@ barrier_init(void)
 static void 
 barrier()
 {
+  pthread_mutex_lock(&bstate.barrier_mutex);
+  bstate.nthread++;
+  if(nthread ==  bstate.nthread){
+    pthread_cond_broadcast(&bstate.barrier_cond);
+    bstate.nthread = 0;
+    bstate.round++;
+  }
+  else{
+    pthread_cond_wait(&bstate.barrier_cond,&bstate.barrier_mutex);
+  }
+  pthread_mutex_unlock(&bstate.barrier_mutex);
   // YOUR CODE HERE
   //
   // Block until all threads have called barrier() and
@@ -44,6 +55,7 @@ thread(void *xa)
     int t = bstate.round;
     assert (i == t);
     barrier();
+    //printf("Passed %d",i);
     usleep(random() % 100);
   }
 

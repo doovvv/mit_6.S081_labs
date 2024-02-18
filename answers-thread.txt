@@ -1,0 +1,4 @@
+when thread 1 is creating a new entry, it find the fisrt entry and is ready insert
+before the first entry. Now thread 1 was sheduled and thread 2 get CPU. Thread 2
+insert a new entry. Then thread 1 get CPU and continue connect to first entry which
+is not the thread 2 create.
