@@ -442,7 +442,7 @@ sys_exec(void)
   }
 
   int ret = exec(path, argv);
-
+  //printf("%s",path);
   for(i = 0; i < NELEM(argv) && argv[i] != 0; i++)
     kfree(argv[i]);
 
