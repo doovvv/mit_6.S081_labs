@@ -180,7 +180,6 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
-      decrease((void*)pa);
       kfree((void*)pa);
     }
     *pte = 0;
@@ -348,7 +347,7 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 int
-copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) //copyout() use software tp copy by pa, which don't trigger page fault
+copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) //copyout() use software to copy by pa, which don't trigger page fault
 {
   uint64 n, va0, pa0;
 
@@ -356,12 +355,12 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) //copyout() 
     va0 = PGROUNDDOWN(dstva);
     if(va0 < MAXVA){
       pte_t *pte = walk(pagetable,va0,0);
-      if((*pte & PTE_C)){
+      if(pte && (*pte & PTE_C) && (*pte & PTE_V) && (*pte & PTE_U)){
         char* mem;
         uint64 pa = PTE2PA(*pte);
         if((mem = kalloc()) ==  0){
           printf("copyout: alloc error");
-          return -1;
+          //return -1;
         }else{
           *pte |= PTE_W;
           *pte &= ~PTE_C;
@@ -371,6 +370,9 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) //copyout() 
           mappages(pagetable,va0,PGSIZE,(uint64)mem,flags);
         }
       }
+      /*else{
+        return -1;
+      }*/
     }
     else{
       return -1;

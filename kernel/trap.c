@@ -75,7 +75,7 @@ usertrap(void)
       pte_t* pte;
         pte = walk(p->pagetable,va,0);
       uint64 pa = PTE2PA(*pte);
-      if((*pte & PTE_C)){
+      if(pte && (*pte & PTE_V) && (*pte& PTE_U) && (*pte & PTE_C)){
         char* mem;
         if((mem = kalloc()) ==  0){
           p->killed = 1;
