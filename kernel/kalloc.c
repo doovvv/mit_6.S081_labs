@@ -10,7 +10,10 @@
 #include "defs.h"
 
 void freerange(void *pa_start, void *pa_end);
-
+#define refpage_index(pa) (pa-KERNBASE)/PGSIZE
+#define MAX_REFPAGE refpage_index(PHYSTOP)
+struct spinlock reflock;
+int refpage[MAX_REFPAGE];
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
 
@@ -27,6 +30,7 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
+  initlock(&reflock,"reflock");
   freerange(end, (void*)PHYSTOP);
 }
 
@@ -50,6 +54,8 @@ kfree(void *pa)
 
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
+  acquire(&reflock);
+  if(refpage[refpage_index((uint64)pa)] <= 0){
 
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
@@ -60,6 +66,8 @@ kfree(void *pa)
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
+  }
+  release(&reflock);
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -76,7 +84,26 @@ kalloc(void)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
+  if(r){
     memset((char*)r, 5, PGSIZE); // fill with junk
+    refpage[refpage_index((uint64)r)] = 1;
+  }
   return (void*)r;
+}
+
+void increase(void* pa){
+  acquire(&reflock);
+  if((uint64)pa < KERNBASE || (uint64)pa > PHYSTOP){
+    printf("pa error");
+  }
+  refpage[refpage_index((uint64)pa)]++;
+  release(&reflock);
+}
+void decrease(void* pa){
+  acquire(&reflock);
+  if((uint64)pa < KERNBASE || (uint64)pa > PHYSTOP){
+    printf("pa error");
+  }
+  refpage[refpage_index((uint64)pa)]--; 
+  release(&reflock);
 }

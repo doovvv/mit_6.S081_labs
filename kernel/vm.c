@@ -180,6 +180,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       uint64 pa = PTE2PA(*pte);
+      decrease((void*)pa);
       kfree((void*)pa);
     }
     *pte = 0;
@@ -301,9 +302,9 @@ int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
-  uint64 pa, i;
+  uint64  pa,i;
   uint flags;
-  char *mem;
+  //char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -311,14 +312,17 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    *pte = *pte & (~PTE_W);
+    *pte |= PTE_C;
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+    /*if((mem = kalloc()) == 0)
       goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    memmove(mem, (char*)pa, PGSIZE);*/
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
+      //kfree(mem);
       goto err;
     }
+    increase((void*)pa);
   }
   return 0;
 
@@ -344,12 +348,33 @@ uvmclear(pagetable_t pagetable, uint64 va)
 // Copy len bytes from src to virtual address dstva in a given page table.
 // Return 0 on success, -1 on error.
 int
-copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len) //copyout() use software tp copy by pa, which don't trigger page fault
 {
   uint64 n, va0, pa0;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    if(va0 < MAXVA){
+      pte_t *pte = walk(pagetable,va0,0);
+      if((*pte & PTE_C)){
+        char* mem;
+        uint64 pa = PTE2PA(*pte);
+        if((mem = kalloc()) ==  0){
+          printf("copyout: alloc error");
+          return -1;
+        }else{
+          *pte |= PTE_W;
+          *pte &= ~PTE_C;
+          uint flags = PTE_FLAGS(*pte); // get flags before unmap, because uvmunmap() make *pte = 0;
+          memmove(mem,(char* )pa,PGSIZE); // before uvmunmap,because uvmunmap() will kfree(pa);
+          uvmunmap(pagetable,va0,1,1);
+          mappages(pagetable,va0,PGSIZE,(uint64)mem,flags);
+        }
+      }
+    }
+    else{
+      return -1;
+    }
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
