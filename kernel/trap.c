@@ -74,10 +74,11 @@ usertrap(void)
       va = PGROUNDDOWN(va);
       pte_t* pte;
         pte = walk(p->pagetable,va,0);
-      uint64 pa = PTE2PA(*pte);
       if(pte && (*pte & PTE_V) && (*pte& PTE_U) && (*pte & PTE_C)){
         char* mem;
+        uint64 pa = PTE2PA(*pte);
         if((mem = kalloc()) ==  0){
+          printf("alloc error");
           p->killed = 1;
         }else{
           *pte |= PTE_W;
